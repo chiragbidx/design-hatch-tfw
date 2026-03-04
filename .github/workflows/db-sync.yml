@@ -1,0 +1,27 @@
+name: DB Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      database_url:
+        description: "Postgres connection string"
+        required: true
+
+jobs:
+  db-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync database migrations
+        run: npm run db:sync
+        env:
+          DATABASE_URL: ${{ inputs.database_url }}

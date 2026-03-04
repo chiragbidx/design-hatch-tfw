@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Update this provider if you are using sqlite or mysql
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum UserRole {
+  CLIENT
+  FREELANCER
+}
+
+enum JobType {
+  FIXED
+  HOURLY
+}
+enum ExperienceLevel {
+  ENTRY
+  INTERMEDIATE
+  EXPERT
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ContractStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  FUNDED
+  SUBMITTED
+  APPROVED
+  RELEASED
+}
+
+enum PaymentStatus {
+  HELD
+  RELEASED
+  REFUNDED
+}
+
+//////////////////////
+// USER & PROFILE
+//////////////////////
+
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  username     String     @unique
+  password     String
+  firstName    String
+  lastName     String
+  location     String?
+  role         UserRole
+  createdAt    DateTime   @default(now())
+
+  profile      Profile?
+  jobs         Job[]      @relation("ClientJobs")
+  proposals    Proposal[]
+  savedJobs    SavedJob[]
+  contractsAsClient     Contract[] @relation("ClientContracts")
+  contractsAsFreelancer Contract[] @relation("FreelancerContracts")
+  reviewsGiven Review[]  @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+  jobInvitesSent     JobInvite[] @relation("ClientInvites")
+  jobInvitesReceived JobInvite[] @relation("FreelancerInvites")
+  withdrawals  Withdrawal[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Profile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  bio         String?
+  hourlyRate  Int?
+  avatarUrl   String?
+  experienceStat String?
+  completedJobs  String?
+  jobSuccess     String?
+  availability String?
+  timezone     String?
+  responseTime String?
+  hireRate    Int?
+  jobsPosted  Int?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills      UserSkill[]
+  portfolio   PortfolioItem[]
+  experience  Experience[]
+}
+
+//////////////////////
+// SKILLS
+//////////////////////
+
+model UserSkill {
+  id        Int     @id @default(autoincrement())
+  name      String
+
+  profileId Int
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+//////////////////////
+// JOBS & PROPOSALS
+//////////////////////
+
+model Job {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  category    String?
+  budget      Int
+  budgetType  JobType   @default(FIXED)
+  experienceLevel ExperienceLevel
+  requiredSkills String[] 
+  status      JobStatus @default(OPEN)
+  createdAt   DateTime  @default(now())
+
+  clientId    Int
+  client      User      @relation("ClientJobs", fields: [clientId], references: [id], onDelete: Cascade)
+
+  proposals   Proposal[]
+  savedBy     SavedJob[]
+  contract    Contract?
+  invites     JobInvite[]
+}
+
+model SavedJob {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+
+  freelancerId Int
+  freelancer   User     @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  jobId        Int
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([freelancerId, jobId])
+}
+
+model Proposal {
+  id          Int            @id @default(autoincrement())
+  coverLetter String
+  bidAmount   Int
+  timeline    String
+  status      ProposalStatus @default(PENDING)
+  createdAt   DateTime       @default(now())
+
+  jobId       Int
+  job         Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  freelancerId Int
+  freelancer   User          @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@unique([freelancerId, jobId])
+}
+
+model JobInvite {
+  id        Int          @id @default(autoincrement())
+  message   String?
+  status    InviteStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  jobId     Int
+  job       Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  freelancerId Int
+  freelancer   User       @relation("FreelancerInvites", fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  invitedByClientId Int
+  invitedBy          User @relation("ClientInvites", fields: [invitedByClientId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, freelancerId])
+}
+
+//////////////////////
+// CONTRACTS & MILESTONES
+//////////////////////
+
+model Contract {
+  id            Int            @id @default(autoincrement())
+  status        ContractStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+
+  jobId         Int            @unique
+  job           Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  clientId      Int
+  client        User           @relation("ClientContracts", fields: [clientId], references: [id], onDelete: Cascade)
+
+  freelancerId  Int
+  freelancer    User           @relation("FreelancerContracts", fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  milestones    Milestone[]
+  reviews       Review[]
+}
+
+model Milestone {
+  id              Int             @id @default(autoincrement())
+  title           String
+  amount          Int
+  status          MilestoneStatus @default(PENDING)
+  submissionNote  String?
+  submittedAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  contractId  Int
+  contract    Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  payment     Payment?
+}
+
+//////////////////////
+// PAYMENTS
+//////////////////////
+
+model Payment {
+  id             Int           @id @default(autoincrement())
+  amount         Int
+  platformFee    Int
+  stripeIntentId String
+  status         PaymentStatus
+  createdAt      DateTime      @default(now())
+
+  milestoneId    Int   @unique
+  milestone      Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Withdrawal {
+  id            Int              @id @default(autoincrement())
+  amount        Int
+  status        WithdrawalStatus @default(PENDING)
+  method        String?
+  note          String?
+
+  // 🔽 Bank transfer details (nullable)
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankIfscCode      String?
+  bankName          String?
+
+  processedAt   DateTime?
+  createdAt     DateTime         @default(now())
+
+  freelancerId  Int
+  freelancer    User             @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+}
+
+
+//////////////////////
+// REVIEWS
+//////////////////////
+
+model Review {
+  id          Int      @id @default(autoincrement())
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  contractId  Int
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  reviewerId  Int
+  reviewer    User     @relation("ReviewsGiven", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  revieweeId  Int
+  reviewee    User     @relation("ReviewsReceived", fields: [revieweeId], references: [id], onDelete: Cascade)
+}
+
+//////////////////////
+// PORTFOLIO
+//////////////////////
+
+model PortfolioItem {
+  id        Int      @id @default(autoincrement())
+  title     String
+  link      String?
+  role      String?
+  result    String?
+  createdAt DateTime @default(now())
+
+  profileId Int
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model Experience {
+  id        Int      @id @default(autoincrement())
+  title     String
+  org       String
+  period    String?
+  details   String?
+  
+  profileId Int
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
